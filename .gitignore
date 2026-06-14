@@ -4,4 +4,5 @@ __pycache__/
 venv/
 data/raw/
 data/processed/
+data/subsets/
 *.pyc

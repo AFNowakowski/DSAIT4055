@@ -39,3 +39,31 @@ py -3 scripts/run_nlp_demo.py
 ```
 
 This trains a simple TF-IDF + logistic regression classifier on a tiny demo dataset so the pipeline is callable before the real data arrives.
+
+## Stack Exchange debug subset
+
+To avoid debugging on the full XML dump, build a small subset first:
+
+```powershell
+py -3 scripts/build_stackexchange_subset.py --target-questions 250 --post-row-limit 300000 --vote-row-limit 300000
+```
+
+A more practical debug run for this dataset is:
+
+```powershell
+py -3 scripts/build_stackexchange_subset.py --target-questions 500 --post-row-limit 2000000 --vote-row-limit 2000000
+```
+
+This writes:
+
+- `data/subsets/debug_subset/questions.csv`
+- `data/subsets/debug_subset/answers.csv`
+- `data/subsets/debug_subset/acceptance_votes.csv`
+- `data/subsets/debug_subset/labeled_answers.csv`
+
+The label rule is:
+
+- `is_deprecated = 1` if an accepted answer is later replaced by another accepted answer on the same question
+- `is_deprecated = 0` otherwise
+
+The row limits are intentional for debugging. Once the logic looks correct on the subset, increase them gradually or remove them for a fuller extraction.
