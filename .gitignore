@@ -2,7 +2,10 @@ __pycache__/
 .ipynb_checkpoints/
 .venv/
 venv/
+*.xml
 data/raw/
 data/processed/
 data/subsets/
 *.pyc
+
+.xml
