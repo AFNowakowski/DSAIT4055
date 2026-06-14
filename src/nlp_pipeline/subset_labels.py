@@ -55,7 +55,7 @@ def build_subset_labels(
 
     label_rows: list[dict[str, str | int | float]] = []
     for question_id, events in acceptance_by_question.items():
-        ordered = sorted(events, key=lambda row: _parse_dt(row["accepted_at"]))
+        ordered = _collapse_repeated_acceptances(events)
         for index, event in enumerate(ordered):
             answer = answer_lookup.get(event["answer_id"])
             if not answer:
@@ -106,3 +106,15 @@ def build_subset_labels(
         "labeled_rows": len(label_rows),
         "questions_with_acceptance_history": len(acceptance_by_question),
     }
+
+
+def _collapse_repeated_acceptances(
+    events: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    ordered = sorted(events, key=lambda row: _parse_dt(row["accepted_at"]))
+    collapsed: list[dict[str, str]] = []
+    for event in ordered:
+        if collapsed and collapsed[-1]["answer_id"] == event["answer_id"]:
+            continue
+        collapsed.append(event)
+    return collapsed

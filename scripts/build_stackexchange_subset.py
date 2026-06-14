@@ -21,6 +21,13 @@ def main() -> None:
     parser.add_argument("--target-questions", type=int, default=250)
     parser.add_argument("--post-row-limit", type=int, default=300000)
     parser.add_argument("--vote-row-limit", type=int, default=300000)
+    parser.add_argument("--post-row-offset", type=int, default=0)
+    parser.add_argument("--vote-row-offset", type=int, default=0)
+    parser.add_argument(
+        "--sampling-strategy",
+        choices=["repeated_acceptance", "accepted_snapshot"],
+        default="repeated_acceptance",
+    )
     args = parser.parse_args()
 
     extraction = extract_debug_subset(
@@ -30,6 +37,9 @@ def main() -> None:
         target_questions=args.target_questions,
         post_row_limit=args.post_row_limit if args.post_row_limit > 0 else None,
         vote_row_limit=args.vote_row_limit if args.vote_row_limit > 0 else None,
+        sampling_strategy=args.sampling_strategy,
+        post_row_offset=args.post_row_offset,
+        vote_row_offset=args.vote_row_offset,
     )
     labels = build_subset_labels(
         answers_csv_path=Path(args.output_dir) / "answers.csv",
@@ -39,6 +49,9 @@ def main() -> None:
 
     print("Subset extraction complete")
     print(f"Output dir: {extraction['output_dir']}")
+    print(f"Sampling strategy: {extraction['sampling_strategy']}")
+    print(f"Post row offset: {extraction['post_row_offset']}")
+    print(f"Vote row offset: {extraction['vote_row_offset']}")
     print(f"Sampled questions: {extraction['sampled_questions']}")
     print(f"Sampled answers: {extraction['sampled_answers']}")
     print(f"Acceptance votes: {extraction['acceptance_votes']}")

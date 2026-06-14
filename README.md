@@ -16,6 +16,7 @@ Use the notebook for exploration and visualization, but keep the core logic in P
 - `src/nlp_pipeline/`: reusable NLP and survival-analysis code
 - `data/`: raw and processed datasets
 - `docs/implementation_notes.md`: project-specific implementation guidance
+- `docs/labeling_workflow.md`: explanation of accepted answers, weak labels, and Ollama labels
 
 ## Initial pipeline idea
 
@@ -67,3 +68,48 @@ The label rule is:
 - `is_deprecated = 0` otherwise
 
 The row limits are intentional for debugging. Once the logic looks correct on the subset, increase them gradually or remove them for a fuller extraction.
+
+## Weak-label subset
+
+Because this dump does not appear to contain full accepted-answer replacement history, the practical NLP path is a weakly supervised subset based on:
+
+- current accepted answers as negative examples
+- older sibling answers as likely superseded positives
+- stronger positive cues from comments like `deprecated` or `outdated`
+
+Build it with:
+
+```powershell
+py -3 scripts/build_weak_label_subset.py --target-questions 500 --post-row-limit 2000000 --comment-row-limit 2000000 --min-gap-days 0
+```
+
+This writes:
+
+- `data/subsets/weak_label_subset/questions.csv`
+- `data/subsets/weak_label_subset/answers.csv`
+- `data/subsets/weak_label_subset/comments.csv`
+- `data/subsets/weak_label_subset/weak_labeled_answers.csv`
+
+See [docs/labeling_workflow.md](C:/Users/anton/Desktop/DELFT/Year-1-Q4/web_science/DSAIT4055/docs/labeling_workflow.md) for an explanation of what `is_accepted_snapshot`, `weak_label`, and `ollama_label` mean.
+
+## Ollama Labels
+
+If you have Ollama locally, you can add semantic labels on top of the weak-label subset:
+
+```powershell
+py -3 scripts/label_with_ollama.py --model llama3.1:8b --limit 25
+```
+
+This reads `data/subsets/weak_label_subset/weak_labeled_answers.csv` and writes:
+
+- `data/subsets/weak_label_subset/ollama_labels.csv`
+
+Recommended use:
+
+- start with `--limit 25`
+- label mostly unaccepted answers first
+- compare `ollama_label` against `heuristic_label`
+- then decide whether to use Ollama labels as:
+  - a review layer
+  - additional training labels
+  - or extra features for the baseline model
