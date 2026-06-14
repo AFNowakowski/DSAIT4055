@@ -44,6 +44,8 @@ def main() -> None:
     print("Ollama labeling complete")
     print(f"Output CSV: {results['output_csv']}")
     print(f"Labeled rows: {results['labeled_rows']}")
+    print(f"Existing rows reused: {results['existing_rows']}")
+    print(f"New rows labeled: {results['new_rows_labeled']}")
 
 
 if __name__ == "__main__":

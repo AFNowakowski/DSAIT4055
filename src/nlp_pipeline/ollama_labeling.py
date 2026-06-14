@@ -36,6 +36,7 @@ def label_answers_with_ollama(
     ollama_executable: str | None = None,
     verbose: bool = False,
     ollama_host: str = "http://127.0.0.1:11434",
+    resume: bool = True,
 ) -> dict[str, int | str]:
     """
     Label answers with a local Ollama model.
@@ -49,22 +50,35 @@ def label_answers_with_ollama(
     - is_accepted_snapshot (optional)
     """
     rows = _read_csv(input_csv_path)
+    output_path = Path(output_csv_path)
+    existing_rows = _read_csv(output_path) if resume and output_path.exists() else []
+    existing_answer_ids = {
+        row["answer_id"]
+        for row in existing_rows
+        if row.get("answer_id")
+    }
+
     selected_rows = []
+    skipped_existing = 0
     for row in rows:
         if only_unaccepted and row.get("is_accepted_snapshot") == "1":
+            continue
+        if row.get("answer_id") in existing_answer_ids:
+            skipped_existing += 1
             continue
         selected_rows.append(row)
         if limit is not None and len(selected_rows) >= limit:
             break
 
-    output_rows: list[dict[str, str]] = []
-    output_path = Path(output_csv_path)
+    output_rows: list[dict[str, str]] = list(existing_rows)
     executable = resolve_ollama_executable(ollama_executable) if ollama_executable else None
     total = len(selected_rows)
     if verbose:
         if executable:
             print(f"Using Ollama executable: {executable}")
         print(f"Using Ollama host: {ollama_host}")
+        print(f"Existing labeled rows: {len(existing_rows)}")
+        print(f"Skipped already labeled rows: {skipped_existing}")
         print(f"Selected rows for labeling: {total}")
 
     for index, row in enumerate(selected_rows, start=1):
@@ -119,6 +133,8 @@ def label_answers_with_ollama(
     return {
         "output_csv": str(output_path),
         "labeled_rows": len(output_rows),
+        "new_rows_labeled": total,
+        "existing_rows": len(existing_rows),
     }
 
 
@@ -309,7 +325,10 @@ def resolve_ollama_executable(explicit_path: str | None = None) -> str:
 
 
 def _read_csv(path: str | Path) -> list[dict[str, str]]:
-    with Path(path).open("r", encoding="utf-8", newline="") as handle:
+    csv_path = Path(path)
+    if not csv_path.exists():
+        return []
+    with csv_path.open("r", encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
 
 

@@ -113,3 +113,56 @@ Recommended use:
   - a review layer
   - additional training labels
   - or extra features for the baseline model
+
+For larger runs, the script is resume-safe:
+
+- it reuses existing rows already written to `ollama_labels.csv`
+- it skips rows that are already labeled
+- it appends new labels by rewriting the CSV with prior rows preserved
+
+Example chunked workflow:
+
+```powershell
+py -3 scripts/label_with_ollama.py --model qwen3.5:9b --limit 100 --ollama-host http://127.0.0.1:11434 --verbose --include-accepted
+```
+
+Run the same command again later to label the next chunk instead of starting over.
+
+## Merge Labels
+
+To create one training file with a single `final_label` column:
+
+```powershell
+py -3 scripts/merge_training_labels.py
+```
+
+This writes:
+
+- `data/subsets/weak_label_subset/training_labels.csv`
+
+Current merge rule:
+
+- use `ollama_label` when available
+- otherwise fall back to `weak_label`
+
+## Cross-Validation
+
+To evaluate the merged dataset with cross-validation instead of a single split:
+
+```powershell
+py -3 scripts/evaluate_training_labels_cv.py --folds 5
+```
+
+This reads:
+
+- `data/subsets/weak_label_subset/training_labels.csv`
+
+and reports fold-by-fold metrics plus mean accuracy, precision, recall, and F1.
+
+## Error Analysis
+
+To inspect example false positives and false negatives from cross-validation:
+
+```powershell
+py -3 scripts/analyze_training_errors.py --folds 5 --show 5
+```
