@@ -1,0 +1,18 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-6767
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6767:6767"
+    environment:
+      MYSQL_ROOT_PASSWORD: somehardROOTPASSWD21
+      MYSQL_DATABASE: dsait4055db
+      MYSQL_USER: dsait4055dbuser
+      MYSQL_PASSWORD: dsait4055dbuserPA55?1
+      MYSQL_TCP_PORT: 6767
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
