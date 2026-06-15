@@ -2,6 +2,9 @@
 
 This repository now contains a starter scaffold for the NLP portion of the project.
 
+Database setup and XML ingress are documented in
+`docs/database_ingress_workflow.md`.
+
 ## Recommended workflow
 
 Use the notebook for exploration and visualization, but keep the core logic in Python modules inside `src/`. That gives you:

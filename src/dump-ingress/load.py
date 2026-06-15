@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import sys
+from pathlib import Path
 
 import pymysql
 from lxml import etree
@@ -335,67 +336,82 @@ def parse_args():
     return p.parse_args()
 
 
-if not os.path.exists('../.env'):
-    raise Exception("No .env file")
-with open('../.env', encoding="utf-8") as fh:
-    for line in fh:
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, val = line.partition("=")
-        os.environ.setdefault(key.strip(), val.strip().strip("'\""))
+def load_env_file(path):
+    """Load simple KEY=VALUE settings without overriding the shell environment."""
+    if not path.exists():
+        return
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            os.environ.setdefault(key.strip(), val.strip().strip("'\""))
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(message)s",
-    datefmt="%H:%M:%S",
-)
-args = parse_args()
 
-tags_path = os.path.join(args.data_dir, "Tags.xml")
-posts_path = os.path.join(args.data_dir, "Posts.xml")
-comments_path = os.path.join(args.data_dir, "Comments.xml")
-votes_path = os.path.join(args.data_dir, "Votes.xml")
+def main():
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    load_env_file(env_path)
 
-for label, path in [("Tags", tags_path), ("Posts", posts_path),
-                    ("Comments", comments_path), ("Votes", votes_path)]:
-    if not os.path.exists(path):
-        sys.exit(f"{label}.xml not found at: {path}")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    args = parse_args()
 
-conn = pymysql.connect(
-    host=args.host, port=args.port, user=args.user,
-    password=args.password, database=args.database,
-    charset="utf8mb4", autocommit=False,
-)
+    tags_path = os.path.join(args.data_dir, "Tags.xml")
+    posts_path = os.path.join(args.data_dir, "Posts.xml")
+    comments_path = os.path.join(args.data_dir, "Comments.xml")
+    votes_path = os.path.join(args.data_dir, "Votes.xml")
 
-try:
-    with conn.cursor() as cur:
-        cur.execute("SET SESSION foreign_key_checks = 0")
-        cur.execute("SET SESSION unique_checks = 0")
-        cur.execute("SET SESSION sql_mode = ''")  # lenient; we also clip strings
-    conn.commit()
+    for label, path in [("Tags", tags_path), ("Posts", posts_path),
+                        ("Comments", comments_path), ("Votes", votes_path)]:
+        if not os.path.exists(path):
+            sys.exit(f"{label}.xml not found at: {path}")
 
-    logging.info("== Step 1, 2: tags ==")
-    tag_id_by_name = load_tags(conn, tags_path)
-    if not tag_id_by_name:
-        sys.exit("None of the SELECTED_TAGS were found in Tags.xml; aborting.")
+    conn = pymysql.connect(
+        host=args.host, port=args.port, user=args.user,
+        password=args.password, database=args.database,
+        charset="utf8mb4", autocommit=False,
+    )
 
-    logging.info("== Step 3, 4: questions + posttags ==")
-    post_ids = load_questions(conn, posts_path, tag_id_by_name)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SET SESSION foreign_key_checks = 0")
+            cur.execute("SET SESSION unique_checks = 0")
+            cur.execute("SET SESSION sql_mode = ''")  # lenient; we also clip strings
+        conn.commit()
 
-    logging.info("== Step 5: answers ==")
-    answer_ids = load_answers(conn, posts_path, post_ids)
+        logging.info("== Step 1, 2: tags ==")
+        tag_id_by_name = load_tags(conn, tags_path)
+        if not tag_id_by_name:
+            sys.exit("None of the SELECTED_TAGS were found in Tags.xml; aborting.")
 
-    logging.info("== Step 6: comments ==")
-    load_comments(conn, comments_path, answer_ids)
+        logging.info("== Step 3, 4: questions + posttags ==")
+        post_ids = load_questions(conn, posts_path, tag_id_by_name)
 
-    logging.info("== Step 7: votes ==")
-    load_votes(conn, votes_path, post_ids, answer_ids)  # todo
+        logging.info("== Step 5: answers ==")
+        answer_ids = load_answers(conn, posts_path, post_ids)
 
-    with conn.cursor() as cur:
-        cur.execute("SET SESSION foreign_key_checks = 1")
-        cur.execute("SET SESSION unique_checks = 1")
-    conn.commit()
-    logging.info("Done. Total posts loaded: %d", len(post_ids))
-finally:
-    conn.close()
+        logging.info("== Step 6: comments ==")
+        load_comments(conn, comments_path, answer_ids)
+
+        logging.info("== Step 7: votes ==")
+        load_votes(conn, votes_path, post_ids, answer_ids)
+
+        with conn.cursor() as cur:
+            cur.execute("SET SESSION foreign_key_checks = 1")
+            cur.execute("SET SESSION unique_checks = 1")
+        conn.commit()
+        logging.info(
+            "Done. Questions loaded: %d | answers loaded: %d",
+            len(post_ids),
+            len(answer_ids),
+        )
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    main()
