@@ -16,7 +16,8 @@ Use the notebook for exploration and visualization, but keep the core logic in P
 ## Project layout
 
 - `notebooks/01_nlp_exploration.ipynb`: starter notebook
-- `src/nlp_pipeline/`: reusable NLP and survival-analysis code
+- `src/nlp_pipeline/`: active comment-level NLP workflow
+- `src/nlp_pipeline/legacy_answer/`: older answer-level experiments kept for reference
 - `data/`: raw and processed datasets
 - `docs/implementation_notes.md`: project-specific implementation guidance
 - `docs/labeling_workflow.md`: explanation of accepted answers, weak labels, and Ollama labels
@@ -39,7 +40,7 @@ Place the dataset in `data/raw/` and start by implementing the event-constructio
 You can smoke-test the NLP baseline on synthetic data with:
 
 ```powershell
-py -3 scripts/run_nlp_demo.py
+py -3 scripts/legacy_answer_nlp/run_nlp_demo.py
 ```
 
 This trains a simple TF-IDF + logistic regression classifier on a tiny demo dataset so the pipeline is callable before the real data arrives.
@@ -49,13 +50,13 @@ This trains a simple TF-IDF + logistic regression classifier on a tiny demo data
 To avoid debugging on the full XML dump, build a small subset first:
 
 ```powershell
-py -3 scripts/build_stackexchange_subset.py --target-questions 250 --post-row-limit 300000 --vote-row-limit 300000
+py -3 scripts/legacy_answer_nlp/build_stackexchange_subset.py --target-questions 250 --post-row-limit 300000 --vote-row-limit 300000
 ```
 
 A more practical debug run for this dataset is:
 
 ```powershell
-py -3 scripts/build_stackexchange_subset.py --target-questions 500 --post-row-limit 2000000 --vote-row-limit 2000000
+py -3 scripts/legacy_answer_nlp/build_stackexchange_subset.py --target-questions 500 --post-row-limit 2000000 --vote-row-limit 2000000
 ```
 
 This writes:
@@ -74,6 +75,9 @@ The row limits are intentional for debugging. Once the logic looks correct on th
 
 ## Weak-label subset
 
+The answer-level scripts below are now grouped under `scripts/legacy_answer_nlp/`
+to keep the active comment workflow easier to navigate.
+
 Because this dump does not appear to contain full accepted-answer replacement history, the practical NLP path is a weakly supervised subset based on:
 
 - current accepted answers as negative examples
@@ -83,7 +87,7 @@ Because this dump does not appear to contain full accepted-answer replacement hi
 Build it with:
 
 ```powershell
-py -3 scripts/build_weak_label_subset.py --target-questions 500 --post-row-limit 2000000 --comment-row-limit 2000000 --min-gap-days 0
+py -3 scripts/legacy_answer_nlp/build_weak_label_subset.py --target-questions 500 --post-row-limit 2000000 --comment-row-limit 2000000 --min-gap-days 0
 ```
 
 This writes:
@@ -100,7 +104,7 @@ See [docs/labeling_workflow.md](C:/Users/anton/Desktop/DELFT/Year-1-Q4/web_scien
 If you have Ollama locally, you can add semantic labels on top of the weak-label subset:
 
 ```powershell
-py -3 scripts/label_with_ollama.py --model llama3.1:8b --limit 25
+py -3 scripts/legacy_answer_nlp/label_with_ollama.py --model llama3.1:8b --limit 25
 ```
 
 This reads `data/subsets/weak_label_subset/weak_labeled_answers.csv` and writes:
@@ -126,7 +130,7 @@ For larger runs, the script is resume-safe:
 Example chunked workflow:
 
 ```powershell
-py -3 scripts/label_with_ollama.py --model qwen3.5:9b --limit 100 --ollama-host http://127.0.0.1:11434 --verbose --include-accepted
+py -3 scripts/legacy_answer_nlp/label_with_ollama.py --model qwen3.5:9b --limit 100 --ollama-host http://127.0.0.1:11434 --verbose --include-accepted
 ```
 
 Run the same command again later to label the next chunk instead of starting over.
@@ -136,7 +140,7 @@ Run the same command again later to label the next chunk instead of starting ove
 To create one training file with a single `final_label` column:
 
 ```powershell
-py -3 scripts/merge_training_labels.py
+py -3 scripts/legacy_answer_nlp/merge_training_labels.py
 ```
 
 This writes:
@@ -153,7 +157,7 @@ Current merge rule:
 To evaluate the merged dataset with cross-validation instead of a single split:
 
 ```powershell
-py -3 scripts/evaluate_training_labels_cv.py --folds 5
+py -3 scripts/legacy_answer_nlp/evaluate_training_labels_cv.py --folds 5
 ```
 
 This reads:
@@ -167,7 +171,7 @@ and reports fold-by-fold metrics plus mean accuracy, precision, recall, and F1.
 To inspect example false positives and false negatives from cross-validation:
 
 ```powershell
-py -3 scripts/analyze_training_errors.py --folds 5 --show 5
+py -3 scripts/legacy_answer_nlp/analyze_training_errors.py --folds 5 --show 5
 ```
 
 ## Comment-level NLP without Ollama
@@ -208,6 +212,25 @@ python3 scripts/predict_comments_to_db.py --apply
 The final command updates only rows where
 `hl_IndicatedDeprecation IS NULL`. Review
 `docs/comment_nlp_workflow.md` before applying predictions.
+
+For an offline workflow that does not require MySQL ingress:
+
+```bash
+python3 scripts/label_comment_annotations_with_ollama.py --model qwen3.5:9b --input-csv data/processed/comment_nlp/annotation_sample.csv --limit 800 --output-csv data/processed/comment_nlp/annotation_sample_ollama.csv
+python3 scripts/evaluate_comment_classifier.py --annotations data/processed/comment_nlp/annotation_sample_ollama.csv --label-column ollama_label
+python3 scripts/train_comment_classifier.py --annotations data/processed/comment_nlp/annotation_sample_ollama.csv --label-column ollama_label
+python3 scripts/predict_comments_offline.py --input-sql Comments.sql --output-csv data/processed/comment_nlp/comments_predictions.csv
+python3 scripts/fill_comment_sql_labels.py --input-sql Comments.sql --output-sql data/processed/comment_nlp/Comments_labeled.sql
+```
+
+This path is useful when you want to validate the NLP model locally and
+produce a labeled `Comments.sql` export before the full dump is ingressed.
+
+To compare multiple lightweight classifiers on the same labeled file:
+
+```bash
+python3 scripts/compare_comment_classifiers.py --annotations data/processed/comment_nlp/annotation_sample_ollama.csv --label-column ollama_label
+```
 
 While human labels are unavailable, build a provisional ranking model with:
 

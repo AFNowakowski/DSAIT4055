@@ -6,10 +6,10 @@ import argparse
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "src"))
 
-from nlp_pipeline.merge_labels import merge_training_labels
+from nlp_pipeline.legacy_answer.merge_labels import merge_training_labels
 
 
 def main() -> None:

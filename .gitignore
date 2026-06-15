@@ -8,5 +8,6 @@ data/raw/
 data/processed/
 data/subsets/
 *.pyc
+quantitative_data.csv
 
 .xml

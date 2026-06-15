@@ -6,11 +6,11 @@ import argparse
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "src"))
 
-from nlp_pipeline.stackexchange_extract import extract_debug_subset
-from nlp_pipeline.subset_labels import build_subset_labels
+from nlp_pipeline.legacy_answer.stackexchange_extract import extract_debug_subset
+from nlp_pipeline.legacy_answer.subset_labels import build_subset_labels
 
 
 def main() -> None:

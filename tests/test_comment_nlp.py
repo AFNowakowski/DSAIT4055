@@ -67,6 +67,46 @@ class CommentCandidateTests(unittest.TestCase):
         self.assertEqual(category, "freshness_confirmation")
         self.assertEqual(reason, "not_deprecated")
 
+    def test_deprecated_can_outrank_still_valid(self) -> None:
+        category, reason = classify_comment_candidate(
+            'This is an old and deprecated way to do a cross join. It is still valid syntax, but not best practice.'
+        )
+
+        self.assertEqual(category, "temporal_candidate")
+        self.assertIn(reason, {"explicit_deprecated", "deprecated_in_favor_of", "old_way_or_syntax"})
+
+    def test_deprecated_in_favor_of_is_temporal(self) -> None:
+        category, reason = classify_comment_candidate(
+            "parallelshell has been deprecated in favor of npm-run-all"
+        )
+
+        self.assertEqual(category, "temporal_candidate")
+        self.assertIn(reason, {"explicit_deprecated", "deprecated_in_favor_of"})
+
+    def test_version_cutoff_is_temporal(self) -> None:
+        category, reason = classify_comment_candidate(
+            "iif would never work in sql 2008, its sql 2012 and later"
+        )
+
+        self.assertEqual(category, "temporal_candidate")
+        self.assertEqual(reason, "version_cutoff")
+
+    def test_old_project_current_version_risk_is_temporal(self) -> None:
+        category, reason = classify_comment_candidate(
+            "Do note that this is a very old project by now, and the odds that it still works with your preferred version of Node are almost zero."
+        )
+
+        self.assertEqual(category, "temporal_candidate")
+        self.assertEqual(reason, "old_project_current_version_risk")
+
+    def test_version_mismatch_is_temporal(self) -> None:
+        category, reason = classify_comment_candidate(
+            "annotorious still works with AngularJs (v1.x) in their respective versions, but for Angular (v11) this library is not matching and a new one has to be created."
+        )
+
+        self.assertEqual(category, "temporal_candidate")
+        self.assertEqual(reason, "version_mismatch")
+
     def test_generic_failure_is_not_temporal_ground_truth(self) -> None:
         category, reason = classify_comment_candidate(
             "This doesn't work on my server."

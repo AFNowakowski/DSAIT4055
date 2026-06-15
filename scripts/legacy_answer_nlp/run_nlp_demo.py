@@ -5,11 +5,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "src"))
 
-from nlp_pipeline.demo_data import make_demo_detector_dataset
-from nlp_pipeline.evaluation import train_test_baseline_detector
+from nlp_pipeline.legacy_answer.demo_data import make_demo_detector_dataset
+from nlp_pipeline.legacy_answer.evaluation import train_test_baseline_detector
 
 
 def main() -> None:

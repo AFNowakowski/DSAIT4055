@@ -6,10 +6,10 @@ import argparse
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "src"))
 
-from nlp_pipeline.ollama_labeling import label_answers_with_ollama
+from nlp_pipeline.legacy_answer.ollama_labeling import label_answers_with_ollama
 
 
 def main() -> None:

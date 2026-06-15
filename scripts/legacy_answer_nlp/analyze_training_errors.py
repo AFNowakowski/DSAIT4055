@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "src"))
 
-from nlp_pipeline.error_analysis import collect_cross_validation_errors
+from nlp_pipeline.legacy_answer.error_analysis import collect_cross_validation_errors
 
 
 def main() -> None:

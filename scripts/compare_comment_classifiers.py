@@ -1,4 +1,4 @@
-"""Evaluate manually labeled comments with a local TF-IDF baseline."""
+"""Compare multiple comment classifiers with cross-validation."""
 
 from __future__ import annotations
 
@@ -25,24 +25,19 @@ def main() -> None:
         default="data/processed/comment_nlp/annotation_sample.csv",
     )
     parser.add_argument("--label-column", default="human_label")
-    parser.add_argument(
-        "--model-type",
-        default="logistic_regression",
-        choices=SUPPORTED_MODEL_TYPES,
-    )
     parser.add_argument("--folds", type=int, default=5)
     args = parser.parse_args()
 
     annotations = pd.read_csv(args.annotations, keep_default_na=False)
-    try:
-        results = evaluate_comment_annotations(
-            annotations,
+    results: dict[str, object] = {}
+    for model_type in SUPPORTED_MODEL_TYPES:
+        results[model_type] = evaluate_comment_annotations(
+            annotations=annotations,
             folds=args.folds,
             label_column=args.label_column,
-            model_type=args.model_type,
+            model_type=model_type,
         )
-    except ValueError as exc:
-        parser.error(str(exc))
+
     print(json.dumps(results, indent=2))
 
 

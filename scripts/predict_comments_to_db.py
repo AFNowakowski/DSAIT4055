@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import sys
@@ -37,6 +38,11 @@ def main() -> None:
     parser.add_argument("--limit", type=int)
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument(
+        "--output-csv",
+        default=None,
+        help="Optional path to write per-comment predictions for inspection.",
+    )
+    parser.add_argument(
         "--apply",
         action="store_true",
         help="Persist predictions. Without this flag the command is a dry run.",
@@ -59,6 +65,7 @@ def main() -> None:
     predicted_positive = 0
     updated = 0
     probability_sum = 0.0
+    collected_predictions: list[dict[str, object]] = []
     try:
         for rows in iter_unclassified_comment_batches(
             connection,
@@ -75,10 +82,15 @@ def main() -> None:
             probability_sum += sum(
                 row["positive_probability"] for row in predictions
             )
+            if args.output_csv:
+                collected_predictions.extend(predictions)
             if args.apply:
                 updated += apply_comment_predictions(connection, predictions)
     finally:
         connection.close()
+
+    if args.output_csv:
+        _write_predictions_csv(args.output_csv, collected_predictions)
 
     summary = {
         "mode": "apply" if args.apply else "dry_run",
@@ -90,6 +102,7 @@ def main() -> None:
         ),
         "updated_rows": updated,
         "threshold": args.threshold,
+        "output_csv": args.output_csv,
     }
     print(json.dumps(summary, indent=2))
 
@@ -103,6 +116,25 @@ def _load_env_file(path: Path) -> None:
             continue
         key, _, value = line.partition("=")
         os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+
+
+def _write_predictions_csv(path: str | Path, predictions: list[dict[str, object]]) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "comment_id",
+        "post_id",
+        "score",
+        "creation_date",
+        "text",
+        "source_label",
+        "prediction",
+        "positive_probability",
+    ]
+    with output_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(predictions)
 
 
 if __name__ == "__main__":

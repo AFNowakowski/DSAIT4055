@@ -6,10 +6,13 @@ import argparse
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "src"))
 
-from nlp_pipeline.weak_label_subset import build_weak_labels, extract_weak_label_subset
+from nlp_pipeline.legacy_answer.weak_label_subset import (
+    build_weak_labels,
+    extract_weak_label_subset,
+)
 
 
 def main() -> None:

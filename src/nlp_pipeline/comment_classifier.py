@@ -1,4 +1,4 @@
-"""Local TF-IDF baseline for manually labeled obsolescence comments."""
+"""Local TF-IDF baselines for comment-level obsolescence classification."""
 
 from __future__ import annotations
 
@@ -8,11 +8,14 @@ from typing import Any
 
 import joblib
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import StratifiedGroupKFold, cross_val_predict
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import FeatureUnion, Pipeline
+from sklearn.svm import LinearSVC
 
 
 POSITIVE_LABELS = {"1", "temporal_obsolescence", "obsolete", "outdated"}
@@ -27,10 +30,25 @@ NEGATIVE_LABELS = {
     "other",
 }
 
+SUPPORTED_MODEL_TYPES = (
+    "logistic_regression",
+    "linear_svm",
+    "naive_bayes",
+)
 
-def build_comment_classifier() -> Pipeline:
-    """Build an interpretable word and character TF-IDF classifier."""
-    features = FeatureUnion(
+
+def build_comment_classifier(model_type: str = "logistic_regression") -> Pipeline:
+    """Build a text classifier for comment obsolescence."""
+    return Pipeline(
+        [
+            ("features", _build_comment_features()),
+            ("classifier", _build_estimator(model_type)),
+        ]
+    )
+
+
+def _build_comment_features() -> FeatureUnion:
+    return FeatureUnion(
         [
             (
                 "word",
@@ -52,32 +70,45 @@ def build_comment_classifier() -> Pipeline:
             ),
         ]
     )
-    return Pipeline(
-        [
-            ("features", features),
-            (
-                "classifier",
-                LogisticRegression(
-                    class_weight="balanced",
-                    max_iter=2000,
-                    random_state=4055,
-                ),
+
+
+def _build_estimator(model_type: str) -> Any:
+    if model_type == "logistic_regression":
+        return LogisticRegression(
+            class_weight="balanced",
+            max_iter=2000,
+            random_state=4055,
+        )
+    if model_type == "linear_svm":
+        return CalibratedClassifierCV(
+            estimator=LinearSVC(
+                class_weight="balanced",
+                random_state=4055,
+                dual="auto",
             ),
-        ]
+            cv=3,
+        )
+    if model_type == "naive_bayes":
+        return MultinomialNB(alpha=0.5)
+    raise ValueError(
+        f"Unsupported model_type '{model_type}'. "
+        f"Choose from: {', '.join(SUPPORTED_MODEL_TYPES)}."
     )
 
 
 def evaluate_comment_annotations(
     annotations: pd.DataFrame,
     folds: int = 5,
+    label_column: str = "human_label",
+    model_type: str = "logistic_regression",
 ) -> dict[str, Any]:
     """Evaluate annotations while keeping comments on one post in one fold."""
-    required = {"text", "post_id", "human_label"}
+    required = {"text", "post_id", label_column}
     missing = required.difference(annotations.columns)
     if missing:
         raise ValueError(f"Missing required columns: {', '.join(sorted(missing))}")
 
-    dataset = prepare_labeled_comments(annotations)
+    dataset = prepare_labeled_comments(annotations, label_column=label_column)
     dataset = dataset.dropna(subset=["post_id"]).copy()
 
     class_counts = dataset["binary_label"].value_counts()
@@ -93,7 +124,7 @@ def evaluate_comment_annotations(
         shuffle=True,
         random_state=4055,
     )
-    model = build_comment_classifier()
+    model = build_comment_classifier(model_type=model_type)
     predictions = cross_val_predict(
         model,
         dataset["text"],
@@ -115,20 +146,24 @@ def evaluate_comment_annotations(
         "positive_rows": int((dataset["binary_label"] == 1).sum()),
         "negative_rows": int((dataset["binary_label"] == 0).sum()),
         "folds": usable_folds,
+        "model_type": model_type,
         "confusion_matrix": matrix,
         "classification_report": report,
     }
 
 
-def prepare_labeled_comments(annotations: pd.DataFrame) -> pd.DataFrame:
-    """Return reviewed comments with normalized binary labels."""
-    required = {"text", "human_label"}
+def prepare_labeled_comments(
+    annotations: pd.DataFrame,
+    label_column: str = "human_label",
+) -> pd.DataFrame:
+    """Return labeled comments with normalized binary labels."""
+    required = {"text", label_column}
     missing = required.difference(annotations.columns)
     if missing:
         raise ValueError(f"Missing required columns: {', '.join(sorted(missing))}")
 
     dataset = annotations.copy()
-    dataset["binary_label"] = dataset["human_label"].map(normalize_human_label)
+    dataset["binary_label"] = dataset[label_column].map(normalize_human_label)
     dataset = dataset.dropna(subset=["binary_label", "text"]).copy()
     dataset["binary_label"] = dataset["binary_label"].astype(int)
 
@@ -142,10 +177,12 @@ def train_comment_classifier(
     annotations: pd.DataFrame,
     model_path: str | Path,
     metadata_path: str | Path | None = None,
+    label_column: str = "human_label",
+    model_type: str = "logistic_regression",
 ) -> dict[str, Any]:
     """Fit the local classifier and persist it with basic training metadata."""
-    dataset = prepare_labeled_comments(annotations)
-    model = build_comment_classifier()
+    dataset = prepare_labeled_comments(annotations, label_column=label_column)
+    model = build_comment_classifier(model_type=model_type)
     model.fit(dataset["text"], dataset["binary_label"])
 
     output_path = Path(model_path)
@@ -157,6 +194,8 @@ def train_comment_classifier(
         "labeled_rows": len(dataset),
         "positive_rows": int((dataset["binary_label"] == 1).sum()),
         "negative_rows": int((dataset["binary_label"] == 0).sum()),
+        "label_column": label_column,
+        "model_type": model_type,
         "positive_definition": "comment indicates temporal answer obsolescence",
         "negative_definition": "all other reviewed comment categories",
     }

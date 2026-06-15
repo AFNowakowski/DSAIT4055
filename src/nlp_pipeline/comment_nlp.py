@@ -36,8 +36,11 @@ ANNOTATION_FIELDS = [
 
 _INSERT_PREFIX = "INSERT INTO dsait4055db.Comments"
 
-_FRESHNESS_RULES = [
+_FRESHNESS_PRIORITY_RULES = [
     ("not_deprecated", re.compile(r"\b(?:is|are|was|were|it'?s)\s+not\s+deprecated\b", re.I)),
+]
+
+_FRESHNESS_FALLBACK_RULES = [
     ("still_supported", re.compile(r"\bstill\s+(?:works?|supported|valid|available)\b", re.I)),
     ("works_in_year", re.compile(r"\bworks?\s+(?:fine\s+)?in\s+20\d{2}\b", re.I)),
 ]
@@ -63,6 +66,39 @@ _TEMPORAL_RULES = [
     ("newer_version", re.compile(
         r"\b(?:newer|latest|recent|current)\s+versions?\b.{0,80}"
         r"\b(?:use|require|removed|deprecated|changed|renamed)\b",
+        re.I,
+    )),
+    ("deprecated_in_favor_of", re.compile(
+        r"\b(?:deprecated|outdated|obsolete)\b.{0,120}\b(?:in favor of|use instead|better to use|"
+        r"replaced by|superseded by|preferred|best practice)\b",
+        re.I,
+    )),
+    ("old_way_or_syntax", re.compile(
+        r"\b(?:old|older)\s+(?:way|syntax|approach|method|style)\b.{0,120}"
+        r"\b(?:deprecated|outdated|obsolete|still valid|best practice|preferred)\b",
+        re.I,
+    )),
+    ("version_supported_only", re.compile(
+        r"\b(?:works?|valid|supported)\s+(?:only\s+)?in\s+"
+        r"(?:version\s+|v\.?\s*)?\d+(?:\.\d+){0,2}\b",
+        re.I,
+    )),
+    ("version_cutoff", re.compile(
+        r"\b(?:never\s+work|does(?:n['’]t|\s+not)\s+work|won['’]t\s+work|"
+        r"not\s+matching|not\s+compatible)\b.{0,120}\b(?:sql|node|angular|react|python|"
+        r"java|ios|android|mysql|postgres|postgresql|django|rails|webpack|npm)\b.{0,40}"
+        r"\b(?:\d+(?:\.\d+){0,2}|v\d+(?:\.\d+){0,2}|later|earlier)\b",
+        re.I,
+    )),
+    ("old_project_current_version_risk", re.compile(
+        r"\b(?:very\s+old|old)\s+(?:project|library|package|plugin|tool|answer)\b.{0,160}"
+        r"\b(?:still\s+works?|works?)\b.{0,80}\b(?:preferred|current|latest)\s+version\b",
+        re.I,
+    )),
+    ("version_mismatch", re.compile(
+        r"\b(?:works?|supported|maintained)\b.{0,120}\b(?:v1|v2|v3|v4|v5|v6|v7|v8|v9|v10|v11|"
+        r"version\s+\d+|angularjs|angular|react|node)\b.{0,160}\b(?:not\s+matching|"
+        r"new\s+one\s+has\s+to\s+be\s+created|not\s+compatible|instead)\b",
         re.I,
     )),
 ]
@@ -148,12 +184,15 @@ def parse_comment_insert(statement: str) -> dict[str, str] | None:
 
 def classify_comment_candidate(text: str) -> tuple[str, str]:
     """Assign a review stratum; this is not a ground-truth label."""
-    for reason, pattern in _FRESHNESS_RULES:
+    for reason, pattern in _FRESHNESS_PRIORITY_RULES:
         if pattern.search(text):
             return "freshness_confirmation", reason
     for reason, pattern in _TEMPORAL_RULES:
         if pattern.search(text):
             return "temporal_candidate", reason
+    for reason, pattern in _FRESHNESS_FALLBACK_RULES:
+        if pattern.search(text):
+            return "freshness_confirmation", reason
     for reason, pattern in _INCORRECT_RULES:
         if pattern.search(text):
             return "incorrectness_candidate", reason
