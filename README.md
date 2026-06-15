@@ -166,3 +166,51 @@ To inspect example false positives and false negatives from cross-validation:
 ```powershell
 py -3 scripts/analyze_training_errors.py --folds 5 --show 5
 ```
+
+## Comment-level NLP without Ollama
+
+The current `Comments.sql` export has 410,621 comments but no populated human
+labels. Prepare it for local NLP and manual annotation with:
+
+```bash
+python3 scripts/prepare_comment_nlp.py
+```
+
+The main review file is:
+
+- `data/processed/comment_nlp/annotation_sample.csv`
+
+Fill its `human_label` column using the categories documented in
+`docs/comment_nlp_workflow.md`. Then evaluate a local TF-IDF + logistic
+regression baseline:
+
+```bash
+python3 scripts/evaluate_comment_classifier.py
+```
+
+This comment classifier is the recommended primary NLP component for the
+paper. The earlier answer-level weak-label and Ollama workflow remains
+experimental and should not be treated as ground truth.
+
+For the database-first workflow:
+
+```bash
+python3 scripts/prepare_comment_nlp_from_db.py
+python3 scripts/evaluate_comment_classifier.py
+python3 scripts/train_comment_classifier.py
+python3 scripts/predict_comments_to_db.py --limit 1000
+python3 scripts/predict_comments_to_db.py --apply
+```
+
+The final command updates only rows where
+`hl_IndicatedDeprecation IS NULL`. Review
+`docs/comment_nlp_workflow.md` before applying predictions.
+
+While human labels are unavailable, build a provisional ranking model with:
+
+```bash
+venv/bin/python scripts/bootstrap_comment_nlp.py
+```
+
+This produces weak-supervision seeds, scores, and an active-learning review
+queue. It intentionally does not update the database prediction column.
