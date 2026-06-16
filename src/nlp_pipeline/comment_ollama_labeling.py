@@ -6,7 +6,7 @@ import csv
 import json
 from pathlib import Path
 
-from .ollama_labeling import resolve_ollama_executable, run_ollama_json
+from .legacy_answer.ollama_labeling import resolve_ollama_executable, run_ollama_json
 
 
 SYSTEM_PROMPT = """You label Stack Overflow comments for answer-obsolescence review.
