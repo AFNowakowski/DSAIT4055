@@ -9,7 +9,7 @@ ALTER TABLE Posts
 ALTER TABLE Posts
     ADD COLUMN hl_FirstAcceptedAnswerOvertakeDate                   DATETIME NULL,
     ADD COLUMN hl_FirstAcceptedAnswerFirstObsoleteCommentDate       DATETIME NULL,
-    ADD COLUMN fl_FirstAcceptedAnswerFirstBountyAfterAcceptanceDate DATETIME NULL,
+    ADD COLUMN hl_FirstAcceptedAnswerFirstBountyAfterAcceptanceDate DATETIME NULL,
     ADD COLUMN hl_FirstAcceptedAnswerFirstVelocityFlipDate          DATETIME NULL,
     ADD COLUMN hl_FirstAcceptedAnswerDeathDate                      DATETIME NULL;
 
