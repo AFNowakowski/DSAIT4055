@@ -335,9 +335,9 @@ def parse_args():
     return p.parse_args()
 
 
-if not os.path.exists('../.env'):
+if not os.path.exists('../../.env'):
     raise Exception("No .env file")
-with open('../.env', encoding="utf-8") as fh:
+with open('../../.env', encoding="utf-8") as fh:
     for line in fh:
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
