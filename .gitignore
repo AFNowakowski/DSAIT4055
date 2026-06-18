@@ -2,6 +2,12 @@ __pycache__/
 .ipynb_checkpoints/
 .venv/
 venv/
+*.xml
+/Comments.sql
 data/raw/
 data/processed/
+data/subsets/
 *.pyc
+quantitative_data.csv
+
+.xml

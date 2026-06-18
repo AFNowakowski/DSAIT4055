@@ -7,7 +7,7 @@ CREATE TABLE Comments
     CreationDate            DATETIME NOT NULL,
     UserDisplayName         VARCHAR(30) NULL,
     UserId                  INT NULL,
-    hl_IndicatedDeprecation TINYINT(1) DEFAULT NULL -- NULL=not checked, TRUE/FALSE=result
+    hl_IndicatedDeprecation TINYINT(1) DEFAULT NULL, -- NULL=not checked, TRUE/FALSE=result
     PRIMARY KEY (Id)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -42,7 +42,7 @@ CREATE TABLE Posts
     FavoriteCount         INT NULL,
     ClosedDate            DATETIME NULL,
     CommunityOwnedDate    DATETIME NULL,
-    hl_IsStableBucket     TINYINT(1) DEFAULT NULL -- null=idk TRUE=stable FALSE=ephemeral
+    hl_IsStableBucket     TINYINT(1) DEFAULT NULL, -- null=idk TRUE=stable FALSE=ephemeral
     PRIMARY KEY (Id)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -54,7 +54,7 @@ CREATE TABLE Tags
     Count             INT NOT NULL,
     ExcerptPostId     INT NULL,
     WikiPostId        INT NULL,
-    hl_IsStableBucket TINYINT(1) DEFAULT NULL -- null=idk TRUE=stable FALSE=ephemeral
+    hl_IsStableBucket TINYINT(1) DEFAULT NULL, -- null=idk TRUE=stable FALSE=ephemeral
     PRIMARY KEY (Id)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
