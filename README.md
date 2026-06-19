@@ -1,19 +1,19 @@
-# Comment Obsolescence NLP Pipeline
+# DSAIT4055 Project
 
-This project detects Stack Overflow comments that indicate an answer has become
-outdated over time.
+This repository contains the code and data workflow for the DSAIT4055 Web
+Science and Engineering project based on Stack Overflow data.
 
-The workflow is comment-level and focused on temporal obsolescence, such as
-deprecation, removed APIs, version incompatibilities, outdated syntax, and
-replaced practices.
+The project combines:
 
-In practice, the pipeline:
+- data ingestion from the Stack Exchange dump into a local MySQL database
+- comment-level NLP for detecting answer obsolescence signals
+- analysis code and supporting scripts for the downstream study
 
-- extracts likely candidate comments with rule-based patterns
-- verifies those candidates with a local Ollama model
-- writes `0/1` obsolescence labels back into SQL or the database
+The current NLP workflow focuses on comments that indicate temporal
+obsolescence, such as deprecation, removed APIs, outdated syntax, and version
+incompatibilities.
 
-More detail is documented in:
+Project documentation:
 
-- `docs/comment_nlp_workflow.md`
 - `docs/database_ingress_workflow.md`
+- `docs/comment_nlp_workflow.md`
