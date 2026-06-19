@@ -6,7 +6,7 @@ import csv
 import json
 from pathlib import Path
 
-from .ollama_utils import resolve_ollama_executable, run_ollama_json
+from .ollama_utils import run_ollama_json
 
 
 SYSTEM_PROMPT = """You label Stack Overflow comments for answer-obsolescence review.
@@ -69,7 +69,6 @@ def label_comment_annotations_with_ollama(
     model: str,
     limit: int | None = None,
     only_unlabeled: bool = True,
-    ollama_executable: str | None = None,
     verbose: bool = False,
     ollama_host: str = "http://127.0.0.1:11434",
     resume: bool = True,
@@ -99,12 +98,9 @@ def label_comment_annotations_with_ollama(
             break
 
     output_rows: list[dict[str, str]] = list(existing_rows)
-    executable = resolve_ollama_executable(ollama_executable) if ollama_executable else None
     total = len(selected_rows)
 
     if verbose:
-        if executable:
-            print(f"Using Ollama executable: {executable}")
         print(f"Using Ollama host: {ollama_host}")
         print(f"Existing labeled rows: {len(existing_rows)}")
         print(f"Skipped already labeled rows: {skipped_existing}")
@@ -122,7 +118,6 @@ def label_comment_annotations_with_ollama(
             response = run_ollama_json(
                 model=model,
                 prompt=prompt,
-                ollama_executable=executable,
                 ollama_host=ollama_host,
             )
         except Exception as exc:
@@ -131,7 +126,6 @@ def label_comment_annotations_with_ollama(
             response = run_ollama_json(
                 model=model,
                 prompt=build_comment_fallback_prompt(row),
-                ollama_executable=executable,
                 ollama_host=ollama_host,
             )
 

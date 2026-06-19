@@ -25,7 +25,7 @@ filter plus Ollama verification.
 Run:
 
 ```powershell
-venv\Scripts\python.exe scripts\prepare_comment_nlp.py --input-sql Comments.sql --output-dir data/processed/comment_nlp --skip-all-comments
+python scripts/prepare_comment_nlp.py --input-sql Comments.sql --output-dir data/processed/comment_nlp --skip-all-comments
 ```
 
 This parses `Comments.sql` and writes:
@@ -45,12 +45,22 @@ The selection rules live in `src/nlp_pipeline/comment_nlp.py`. They include:
 These rules are intentionally high recall. A candidate is not yet a final
 positive label.
 
+If your comments are already in MySQL, you can prepare the same files directly
+from the database:
+
+```powershell
+python scripts/prepare_comment_nlp_from_db.py --output-dir data/processed/comment_nlp_db
+```
+
+By default this reads only answer comments whose
+`hl_IndicatedDeprecation IS NULL`.
+
 ## Stage 2: Narrow to the Temporal Subset
 
 If you want to review only the temporal candidates:
 
 ```powershell
-venv\Scripts\python.exe scripts\filter_comment_candidates.py --input-csv data/processed/comment_nlp/candidate_comments.csv --output-csv data/processed/comment_nlp/candidate_comments_temporal_only.csv --candidate-category temporal_candidate
+python scripts/filter_comment_candidates.py --input-csv data/processed/comment_nlp/candidate_comments.csv --output-csv data/processed/comment_nlp/candidate_comments_temporal_only.csv --candidate-category temporal_candidate
 ```
 
 This keeps only rows where `candidate_category == temporal_candidate`.
@@ -60,7 +70,7 @@ This keeps only rows where `candidate_category == temporal_candidate`.
 Run a local Ollama model over the candidate CSV:
 
 ```powershell
-venv\Scripts\python.exe scripts\label_comment_annotations_with_ollama.py --model qwen3.5:9b --input-csv data/processed/comment_nlp/candidate_comments_temporal_only.csv --limit 2000 --ollama-host http://127.0.0.1:11434 --verbose --output-csv data/processed/comment_nlp/candidate_comments_temporal_only_ollama.csv
+python scripts/label_comment_annotations_with_ollama.py --model qwen3.5:9b --input-csv data/processed/comment_nlp/candidate_comments_temporal_only.csv --limit 2000 --ollama-host http://127.0.0.1:11434 --verbose --output-csv data/processed/comment_nlp/candidate_comments_temporal_only_ollama.csv
 ```
 
 The labeling prompt asks the model to assign one of:
@@ -83,7 +93,7 @@ To create a new SQL file where only Ollama-confirmed temporal comments receive
 `1`:
 
 ```powershell
-venv\Scripts\python.exe scripts\fill_comment_sql_from_ollama_labels.py --input-sql Comments.sql --labels-csv data/processed/comment_nlp/candidate_comments_temporal_only_ollama.csv --output-sql data/processed/comment_nlp/Comments_ollama_labeled.sql
+python scripts/fill_comment_sql_from_ollama_labels.py --input-sql Comments.sql --labels-csv data/processed/comment_nlp/candidate_comments_temporal_only_ollama.csv --output-sql data/processed/comment_nlp/Comments_ollama_labeled.sql
 ```
 
 This maps:
@@ -94,12 +104,26 @@ This maps:
 The output is a full SQL export with `hl_IndicatedDeprecation` populated for
 every comment.
 
+If you want to update the ingressed database directly instead of producing a
+SQL file:
+
+```powershell
+python scripts/update_comment_db_from_ollama_labels.py --labels-csv data/processed/comment_nlp_db/candidate_comments_temporal_only_ollama.csv
+```
+
+By default this:
+
+- updates answer comments only
+- writes `1` for `temporal_obsolescence`
+- writes `0` for all remaining answer comments
+- overwrites existing values unless `--only-fill-null` is used
+
 ## Heuristic-Only SQL Output
 
 If you want a quick baseline without Ollama verification:
 
 ```powershell
-venv\Scripts\python.exe scripts\fill_comment_sql_heuristic_labels.py --input-sql Comments.sql --output-sql data/processed/comment_nlp/Comments_heuristic_labeled.sql
+python scripts/fill_comment_sql_heuristic_labels.py --input-sql Comments.sql --output-sql data/processed/comment_nlp/Comments_heuristic_labeled.sql
 ```
 
 This writes:
@@ -109,8 +133,6 @@ This writes:
 
 ## Notes
 
-- `annotation_sample.csv` is useful for manual inspection, but the final paper
+- `annotation_sample.csv` is useful for manual inspection, but the final
   workflow does not require a trained classifier.
-- The final active NLP workflow is comment-level only.
-- Older answer-level experiments and classifier-training utilities were removed
-  to keep the repository aligned with the final paper methodology.
+- The active NLP workflow is comment-level only.
