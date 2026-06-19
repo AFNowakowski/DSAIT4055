@@ -1,173 +1,138 @@
 # Comment NLP Workflow
 
-## Immediate objective
+## Objective
 
-Detect comments that provide evidence that a Stack Overflow answer became
-outdated because the underlying technology changed.
+Detect comments that indicate a Stack Overflow answer became outdated because
+the underlying technology changed over time.
 
-This is narrower than general sentiment analysis. A negative comment is not
-automatically evidence of temporal obsolescence.
+This pipeline targets temporal obsolescence only. We do not treat generic
+negativity, correctness disputes, or isolated user failures as positive labels
+unless the comment explicitly ties the problem to a change in version, API,
+syntax, platform, or recommended practice.
 
-## Database meaning
+## Database Meaning
 
 The `Comments.hl_IndicatedDeprecation` column has the following meaning:
 
-- `NULL`: the comment has not been classified
-- `0`: no temporal-obsolescence indication was predicted
-- `1`: the comment was predicted to indicate temporal obsolescence
+- `0`: no temporal-obsolescence indication
+- `1`: temporal-obsolescence indication
 
-These must be classifier predictions, not direct keyword-rule results.
+In the final workflow, these values are produced from the rule-based candidate
+filter plus Ollama verification.
 
-Install the runtime dependencies in the project environment before running the
-database workflow:
-
-```bash
-venv/bin/pip install -r requirements.txt
-```
-
-## Bootstrap without human labels
-
-When reviewed labels are not yet available, run:
-
-```bash
-venv/bin/python scripts/bootstrap_comment_nlp.py
-```
-
-This performs weak supervision:
-
-- narrow, explicit version/deprecation phrases provide provisional positives
-- explicit freshness and original-incorrectness phrases provide provisional
-  negatives
-- a random unlabeled sample is treated as low-weight background
-- ambiguous phrases such as "doesn't work on my server" are left unlabeled
-
-It creates:
-
-- `bootstrap_training_seeds.csv`
-- `bootstrap_comment_classifier.joblib`
-- `bootstrap_scores.csv`
-- `bootstrap_review_queue.csv`
-- `bootstrap_metadata.json`
-
-The review queue prioritizes high scores, uncertain examples, and comments that
-the model ranked highly even though the rules abstained. These outputs are a
-basis for later annotation and active learning.
-
-Bootstrap scores are not evaluated probabilities or ground-truth labels. The
-bootstrap model must not update `hl_IndicatedDeprecation`.
-
-## Prepare data from MySQL
-
-After database ingress, run:
-
-```bash
-python3 scripts/prepare_comment_nlp_from_db.py
-```
-
-This reads comments whose prediction value is still `NULL` and creates the
-candidate and annotation files.
-
-## Offline SQL fallback
+## Stage 1: Prepare Candidate Comments
 
 Run:
 
-```bash
-python3 scripts/prepare_comment_nlp.py
+```powershell
+python scripts/prepare_comment_nlp.py --input-sql Comments.sql --output-dir data/processed/comment_nlp --skip-all-comments
 ```
 
-This reads `Comments.sql` and writes:
+This parses `Comments.sql` and writes:
 
-- `data/processed/comment_nlp/comments.csv`: all parsed comments
-- `data/processed/comment_nlp/candidate_comments.csv`: comments selected by
-  high-recall review rules
-- `data/processed/comment_nlp/annotation_sample.csv`: a balanced manual-review
-  sample
-- `data/processed/comment_nlp/summary.json`: parsing and candidate counts
+- `candidate_comments.csv`: comments selected by the high-recall rules
+- `annotation_sample.csv`: a balanced review sample across candidate categories
+- `summary.json`: parsing counts and category totals
 
-The candidate rules are sampling aids, not training labels.
+The selection rules live in `src/nlp_pipeline/comment_nlp.py`. They include:
 
-Use `--skip-all-comments` when only the smaller candidate and annotation files
-are needed.
+- explicit deprecation words such as `deprecated`, `outdated`, and `obsolete`
+- `no longer works` patterns
+- removed API phrases
+- version replacement and version cutoff patterns
+- syntax and best-practice replacement patterns
 
-## Manual labels
+These rules are intentionally high recall. A candidate is not yet a final
+positive label.
 
-Fill `human_label` in `annotation_sample.csv` with one of:
+If your comments are already in MySQL, you can prepare the same files directly
+from the database:
 
-- `temporal_obsolescence`: the comment says the answer became outdated because
-  an API, version, platform, syntax, or recommended practice changed
-- `freshness_confirmation`: the comment explicitly says the answer still works
-  or remains supported
-- `incorrectness`: the answer was wrong independently of technological change
-- `situational_failure`: it failed for one environment or user without enough
-  evidence of temporal change
-- `neutral`: none of the above
-
-Examples:
-
-- "This method was removed in version 4." -> `temporal_obsolescence`
-- "Still works in Python 3.13." -> `freshness_confirmation`
-- "This is incorrect; the result should be 5." -> `incorrectness`
-- "It doesn't work on my server." -> `situational_failure`
-
-Do not infer obsolescence from age, comment score, or negative tone alone.
-
-## Evaluate the first baseline
-
-After annotating enough rows, run:
-
-```bash
-python3 scripts/evaluate_comment_classifier.py
+```powershell
+python scripts/prepare_comment_nlp_from_db.py --output-dir data/processed/comment_nlp_db
 ```
 
-The baseline uses word and character TF-IDF with balanced logistic regression.
-Cross-validation keeps comments attached to the same `post_id` in one fold.
+By default this reads only answer comments whose
+`hl_IndicatedDeprecation IS NULL`.
 
-For a meaningful first evaluation, aim for:
+## Stage 2: Narrow to the Temporal Subset
 
-- at least 100 manually verified temporal-obsolescence comments
-- at least 300 verified negative comments across the other categories
-- preferably two annotators for a shared subset of 100 comments
+If you want to review only the temporal candidates:
 
-## Train the classifier
-
-After reviewing the evaluation results, train on all reviewed rows:
-
-```bash
-python3 scripts/train_comment_classifier.py
+```powershell
+python scripts/filter_comment_candidates.py --input-csv data/processed/comment_nlp/candidate_comments.csv --output-csv data/processed/comment_nlp/candidate_comments_temporal_only.csv --candidate-category temporal_candidate
 ```
 
-This writes the model and training metadata under
-`data/processed/comment_nlp/`. Training cannot proceed while the annotation
-labels are empty.
+This keeps only rows where `candidate_category == temporal_candidate`.
 
-## Predict database values
+## Stage 3: Verify Candidates with Ollama
 
-First run a small database dry run:
+Run a local Ollama model over the candidate CSV:
 
-```bash
-python3 scripts/predict_comments_to_db.py --limit 1000
+```powershell
+python scripts/label_comment_annotations_with_ollama.py --model qwen3.5:9b --input-csv data/processed/comment_nlp/candidate_comments_temporal_only.csv --limit 2000 --ollama-host http://127.0.0.1:11434 --verbose --output-csv data/processed/comment_nlp/candidate_comments_temporal_only_ollama.csv
 ```
 
-No values are written without `--apply`. After checking the evaluation and the
-dry-run positive rate, classify all remaining comments with:
+The labeling prompt asks the model to assign one of:
 
-```bash
-python3 scripts/predict_comments_to_db.py --apply
+- `temporal_obsolescence`
+- `freshness_confirmation`
+- `incorrectness`
+- `situational_failure`
+- `neutral`
+
+The script is resume-safe:
+
+- it reuses rows already written to the output CSV
+- it skips rows already present in the output file
+- rerunning the same command continues where the previous run stopped
+
+## Stage 4: Write Final SQL Labels
+
+To create a new SQL file where only Ollama-confirmed temporal comments receive
+`1`:
+
+```powershell
+python scripts/fill_comment_sql_from_ollama_labels.py --input-sql Comments.sql --labels-csv data/processed/comment_nlp/candidate_comments_temporal_only_ollama.csv --output-sql data/processed/comment_nlp/Comments_ollama_labeled.sql
 ```
 
-The update query includes `WHERE hl_IndicatedDeprecation IS NULL`, so existing
-values are not overwritten. The default probability threshold is `0.5`; use
-`--threshold` only after validating a different threshold.
+This maps:
 
-## Later analysis
+- `ollama_label == temporal_obsolescence` -> `1`
+- every other row -> `0`
 
-The complete paper analysis also uses:
+The output is a full SQL export with `hl_IndicatedDeprecation` populated for
+every comment.
 
-- whether each `PostId` is an answer
-- answer creation date
-- answer-to-question `ParentId`
-- question tags
-- accepted-answer status or acceptance timestamp
+If you want to update the ingressed database directly instead of producing a
+SQL file:
 
-The database ingress now provides these post and tag relationships. Historical
-acceptance replacement may still not be fully reconstructable from the dump.
+```powershell
+python scripts/update_comment_db_from_ollama_labels.py --labels-csv data/processed/comment_nlp_db/candidate_comments_temporal_only_ollama.csv
+```
+
+By default this:
+
+- updates answer comments only
+- writes `1` for `temporal_obsolescence`
+- writes `0` for all remaining answer comments
+- overwrites existing values unless `--only-fill-null` is used
+
+## Heuristic-Only SQL Output
+
+If you want a quick baseline without Ollama verification:
+
+```powershell
+python scripts/fill_comment_sql_heuristic_labels.py --input-sql Comments.sql --output-sql data/processed/comment_nlp/Comments_heuristic_labeled.sql
+```
+
+This writes:
+
+- `1` when the rule-based candidate category is `temporal_candidate`
+- `0` otherwise
+
+## Notes
+
+- `annotation_sample.csv` is useful for manual inspection, but the final
+  workflow does not require a trained classifier.
+- The active NLP workflow is comment-level only.
