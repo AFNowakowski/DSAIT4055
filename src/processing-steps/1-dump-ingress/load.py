@@ -34,7 +34,7 @@ STABLE_TAGS = [
     "data-structures"
 ]
 
-BUCKET_QUOTA = 100_000
+BUCKET_QUOTA = 80_000
 
 SELECTED_TAGS = EPHEMERAL_TAGS + STABLE_TAGS
 
@@ -210,6 +210,8 @@ def load_questions(conn, path, tag_id_by_name):
         if elem.get("PostTypeId") != "1":
             continue
         if elem.get("DeletionDate") is not None:  # require DeletionDate == null
+            continue
+        if elem.get("AcceptedAnswerId") is None:  # require an accepted answer
             continue
         created = elem.get("CreationDate")
         if created is None or created < "2015-01-01":  # questions from 2015-01-01 on

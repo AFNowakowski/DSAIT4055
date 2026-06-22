@@ -14,3 +14,6 @@ ALTER TABLE Posts
     ADD COLUMN hl_FirstAcceptedAnswerDeathDate                      DATETIME NULL;
 
 -- yeah, I could have reused those columns, it's for ease of verification
+
+CREATE INDEX Idx_Votes_Post_Type_Date
+    ON Votes (PostId, VoteTypeId, CreationDate);

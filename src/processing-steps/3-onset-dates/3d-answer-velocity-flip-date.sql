@@ -14,7 +14,7 @@ JOIN (
           AND DATE(v.CreationDate) > DATE(p.hl_FirstAcceptanceDate)
         GROUP BY v.PostId, DATE(v.CreationDate)
     ) daily
-    WHERE daily.DailyNet <= -5
+    WHERE daily.DailyNet <= -2
     GROUP BY PostId
 ) flip ON flip.PostId = a.Id
 SET a.hl_FirstVelocityFlipDate = flip.FlipDate

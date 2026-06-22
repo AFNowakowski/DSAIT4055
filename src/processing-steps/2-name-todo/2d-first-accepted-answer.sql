@@ -1,3 +1,6 @@
+CREATE INDEX Idx_Posts_Type_Parent_Acc
+    ON Posts (PostTypeId, ParentId, hl_FirstAcceptanceDate, Id);
+
 ALTER TABLE Posts
 ADD COLUMN hl_FirstAcceptedAnswerId INT NULL;
 
@@ -18,6 +21,9 @@ JOIN (
 ) best ON best.ParentId = q.Id
 SET q.hl_FirstAcceptedAnswerId = best.Id
 WHERE q.PostTypeId = 1;
+
+CREATE INDEX Idx_Posts_Type_FAA
+    ON Posts (PostTypeId, hl_FirstAcceptedAnswerId);
 
 ALTER TABLE Posts
 ADD COLUMN hl_FirstAcceptedAnswerCreationDate DATETIME NULL;
