@@ -29,7 +29,6 @@ def main() -> None:
         action="store_true",
         help="Also send rows that already have a human_label.",
     )
-    parser.add_argument("--ollama-exe", default=None)
     parser.add_argument("--ollama-host", default="http://127.0.0.1:11434")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
@@ -40,7 +39,6 @@ def main() -> None:
         model=args.model,
         limit=args.limit if args.limit > 0 else None,
         only_unlabeled=not args.include_human_labeled,
-        ollama_executable=args.ollama_exe,
         ollama_host=args.ollama_host,
         verbose=args.verbose,
     )
